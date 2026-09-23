@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ranking da Gincana Ambiental | PECP</title>
+  <meta name="description" content="Ranking atualizado da Gincana Ambiental do PECP." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Gincana Ambiental</p>
+        <h1>Ranking das Turmas</h1>
+        <p class="subtitle">Classificação pela soma dos pontos acumulados nas coletas.</p>
+      </div>
+      <div class="updated" id="updated">Atualizando...</div>
+    </header>
+
+    <section class="rules" aria-label="Regras de pontuação">
+      <div><strong>PET</strong><span>10 pts/kg</span></div>
+      <div><strong>Alumínio</strong><span>8 pts/kg</span></div>
+      <div><strong>Tetra Pak</strong><span>5 pts/kg</span></div>
+    </section>
+
+    <section class="podium" id="podium" aria-label="Pódio"></section>
+
+    <section class="ranking-card">
+      <div class="ranking-header">
+        <h2>Classificação geral</h2>
+        <button id="refreshBtn" type="button">Atualizar</button>
+      </div>
+      <div id="status" class="status">Carregando ranking...</div>
+      <div class="table-wrap">
+        <table id="rankingTable" hidden>
+          <thead>
+            <tr>
+              <th>Posição</th>
+              <th>Turma</th>
+              <th>Pontos</th>
+              <th>Total coletado</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>Ranking calculado a partir dos registros da Gincana Ambiental.</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
