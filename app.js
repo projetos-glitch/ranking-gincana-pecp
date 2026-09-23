@@ -1,4 +1,4 @@
-const PUBLISHED_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTN6YMI0r8MAfC3l8jYLY05shv9L-ZFTkCSyq3GL6wCUNlBVpZBjAFNuCyfjQbN-wAjs7nWRoPMH433/pub?gid=1035928882&single=true&output=csv';
+const PUBLISHED_GVIZ_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTN6YMI0r8MAfC3l8jYLY05shv9L-ZFTkCSyq3GL6wCUNlBVpZBjAFNuCyfjQbN-wAjs7nWRoPMH433/gviz/tq?gid=1035928882&tqx=responseHandler:rankingCallback';
 
 const statusEl = document.getElementById('status');
 const table = document.getElementById('rankingTable');
@@ -7,67 +7,25 @@ const podium = document.getElementById('podium');
 const updated = document.getElementById('updated');
 const refreshBtn = document.getElementById('refreshBtn');
 
+let currentScript = null;
+let loadTimeout = null;
+
 function number(value) {
   if (typeof value === 'number') return value;
   if (value == null || value === '') return 0;
   return Number(String(value).replace(/\./g, '').replace(',', '.')) || 0;
 }
 
-function parseCSV(text) {
-  const rows = [];
-  let row = [];
-  let field = '';
-  let quoted = false;
+function extractRanking(payload) {
+  const rows = payload?.table?.rows || [];
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-
-    if (quoted) {
-      if (char === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          quoted = false;
-        }
-      } else {
-        field += char;
-      }
-      continue;
-    }
-
-    if (char === '"') {
-      quoted = true;
-    } else if (char === ',') {
-      row.push(field);
-      field = '';
-    } else if (char === '\n') {
-      row.push(field.replace(/\r$/, ''));
-      rows.push(row);
-      row = [];
-      field = '';
-    } else {
-      field += char;
-    }
-  }
-
-  if (field.length || row.length) {
-    row.push(field.replace(/\r$/, ''));
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-function extractRanking(rows) {
   return rows
-    .slice(1)
     .map(row => ({
-      turma: String(row[0] || '').trim(),
-      kg: number(row[1]),
-      pontos: number(row[2])
+      turma: String(row.c?.[0]?.v || '').trim(),
+      kg: number(row.c?.[1]?.v),
+      pontos: number(row.c?.[2]?.v)
     }))
-    .filter(item => item.turma)
+    .filter(item => item.turma && item.turma.toUpperCase() !== 'TURMA')
     .sort((a, b) => b.pontos - a.pontos || b.kg - a.kg || a.turma.localeCompare(b.turma, 'pt-BR'));
 }
 
@@ -112,28 +70,60 @@ function render(data) {
   }).format(new Date())}`;
 }
 
-async function loadRanking() {
+window.rankingCallback = function(payload) {
+  clearTimeout(loadTimeout);
+
+  try {
+    const data = extractRanking(payload);
+
+    if (!data.length) {
+      throw new Error('Nenhuma turma encontrada.');
+    }
+
+    render(data);
+  } catch (error) {
+    statusEl.hidden = false;
+    table.hidden = true;
+    statusEl.textContent = 'Os dados foram publicados, mas não foi possível montar o ranking.';
+    updated.textContent = 'Falha ao processar os dados';
+    console.error(error);
+  } finally {
+    if (currentScript) {
+      currentScript.remove();
+      currentScript = null;
+    }
+  }
+};
+
+function loadRanking() {
   table.hidden = true;
   statusEl.hidden = false;
   statusEl.textContent = 'Carregando ranking...';
+  updated.textContent = 'Atualizando...';
 
-  try {
-    const response = await fetch(`${PUBLISHED_CSV_URL}&_=${Date.now()}`, {
-      cache: 'no-store'
-    });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const rows = parseCSV(await response.text());
-    const data = extractRanking(rows);
-
-    if (!data.length) throw new Error('Nenhuma turma encontrada.');
-    render(data);
-  } catch (error) {
-    statusEl.textContent = 'Não foi possível carregar o ranking agora. Tente atualizar novamente em alguns instantes.';
-    updated.textContent = 'Falha ao atualizar os dados';
-    console.error(error);
+  if (currentScript) {
+    currentScript.remove();
   }
+
+  currentScript = document.createElement('script');
+  currentScript.src = `${PUBLISHED_GVIZ_URL}&_=${Date.now()}`;
+  currentScript.async = true;
+
+  currentScript.onerror = function() {
+    clearTimeout(loadTimeout);
+    statusEl.textContent = 'Não foi possível carregar os dados publicados agora.';
+    updated.textContent = 'Falha ao atualizar os dados';
+    currentScript?.remove();
+    currentScript = null;
+  };
+
+  document.body.appendChild(currentScript);
+
+  clearTimeout(loadTimeout);
+  loadTimeout = setTimeout(() => {
+    statusEl.textContent = 'A leitura dos dados demorou mais que o esperado. Tente novamente.';
+    updated.textContent = 'Falha ao atualizar os dados';
+  }, 12000);
 }
 
 refreshBtn.addEventListener('click', loadRanking);
