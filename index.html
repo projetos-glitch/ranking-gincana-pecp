@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
   <main class="page-shell">
@@ -28,6 +28,17 @@
     </section>
 
     <section class="podium" id="podium" aria-label="Pódio"></section>
+
+    <section class="chart-card" aria-labelledby="chartTitle">
+      <div class="chart-header">
+        <div>
+          <p class="chart-kicker">Comparativo</p>
+          <h2 id="chartTitle">Pontos por turma</h2>
+        </div>
+        <span>Quanto maior a barra, maior a pontuação acumulada.</span>
+      </div>
+      <div class="bar-chart" id="barChart" aria-live="polite"></div>
+    </section>
 
     <section class="ranking-card">
       <div class="ranking-header">
@@ -52,6 +63,6 @@
 
     <footer>Ranking calculado a partir dos registros da Gincana Ambiental.</footer>
   </main>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
