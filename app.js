@@ -1,7 +1,4 @@
-const SPREADSHEET_ID = '145Ap0Z2q7tekanL-j9BBYhfbZXQhNq6cRQYtEehstrM';
-const SHEET_NAME = 'Ranking Público';
-
-const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&tqx=out:json&tq=${encodeURIComponent('select A,B,C where A is not null')}`;
+const PUBLISHED_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTN6YMI0r8MAfC3l8jYLY05shv9L-ZFTkCSyq3GL6wCUNlBVpZBjAFNuCyfjQbN-wAjs7nWRoPMH433/pub?gid=1035928882&single=true&output=csv';
 
 const statusEl = document.getElementById('status');
 const table = document.getElementById('rankingTable');
@@ -13,25 +10,64 @@ const refreshBtn = document.getElementById('refreshBtn');
 function number(value) {
   if (typeof value === 'number') return value;
   if (value == null || value === '') return 0;
-  return Number(String(value).replace(',', '.')) || 0;
+  return Number(String(value).replace(/\./g, '').replace(',', '.')) || 0;
 }
 
-function parseGviz(text) {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end < 0) throw new Error('Resposta inválida do Google Planilhas.');
-  return JSON.parse(text.slice(start, end + 1));
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+
+    if (quoted) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          quoted = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = true;
+    } else if (char === ',') {
+      row.push(field);
+      field = '';
+    } else if (char === '\n') {
+      row.push(field.replace(/\r$/, ''));
+      rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += char;
+    }
+  }
+
+  if (field.length || row.length) {
+    row.push(field.replace(/\r$/, ''));
+    rows.push(row);
+  }
+
+  return rows;
 }
 
-function extractRanking(payload) {
-  const rows = payload.table?.rows || [];
+function extractRanking(rows) {
   return rows
+    .slice(1)
     .map(row => ({
-      turma: String(row.c?.[0]?.v || '').trim(),
-      kg: number(row.c?.[1]?.v),
-      pontos: number(row.c?.[2]?.v)
+      turma: String(row[0] || '').trim(),
+      kg: number(row[1]),
+      pontos: number(row[2])
     }))
-    .filter(item => item.turma && item.turma.toUpperCase() !== 'TURMA')
+    .filter(item => item.turma)
     .sort((a, b) => b.pontos - a.pontos || b.kg - a.kg || a.turma.localeCompare(b.turma, 'pt-BR'));
 }
 
@@ -41,6 +77,7 @@ function formatNumber(value, max = 2) {
 
 function render(data) {
   tbody.innerHTML = '';
+
   data.forEach((item, index) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -54,6 +91,7 @@ function render(data) {
 
   podium.innerHTML = '';
   const classes = ['first', 'second', 'third'];
+
   data.slice(0, 3).forEach((item, index) => {
     const card = document.createElement('article');
     card.className = `podium-card ${classes[index]}`;
@@ -68,7 +106,10 @@ function render(data) {
 
   statusEl.hidden = true;
   table.hidden = false;
-  updated.textContent = `Atualizado em ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date())}`;
+  updated.textContent = `Atualizado em ${new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(new Date())}`;
 }
 
 async function loadRanking() {
@@ -77,17 +118,21 @@ async function loadRanking() {
   statusEl.textContent = 'Carregando ranking...';
 
   try {
-    const response = await fetch(`${GVIZ_URL}&_=${Date.now()}`);
+    const response = await fetch(`${PUBLISHED_CSV_URL}&_=${Date.now()}`, {
+      cache: 'no-store'
+    });
+
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const payload = parseGviz(await response.text());
-    const data = extractRanking(payload);
+    const rows = parseCSV(await response.text());
+    const data = extractRanking(rows);
 
     if (!data.length) throw new Error('Nenhuma turma encontrada.');
     render(data);
   } catch (error) {
-    statusEl.innerHTML = 'O ranking ainda não está liberado para leitura pública. Publique somente a aba <strong>Ranking Público</strong> do Google Planilhas e recarregue esta página.';
-    updated.textContent = 'Aguardando publicação dos dados';
+    statusEl.textContent = 'Não foi possível carregar o ranking agora. Tente atualizar novamente em alguns instantes.';
+    updated.textContent = 'Falha ao atualizar os dados';
+    console.error(error);
   }
 }
 
