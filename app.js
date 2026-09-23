@@ -4,6 +4,7 @@ const statusEl = document.getElementById('status');
 const table = document.getElementById('rankingTable');
 const tbody = table.querySelector('tbody');
 const podium = document.getElementById('podium');
+const barChart = document.getElementById('barChart');
 const updated = document.getElementById('updated');
 const refreshBtn = document.getElementById('refreshBtn');
 
@@ -11,8 +12,31 @@ function formatNumber(value, max = 2) {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: max }).format(Number(value) || 0);
 }
 
+function renderChart(data) {
+  barChart.innerHTML = '';
+
+  const maxPoints = Math.max(...data.map(item => Number(item.pontos) || 0), 1);
+
+  data.forEach((item, index) => {
+    const points = Number(item.pontos) || 0;
+    const width = Math.max((points / maxPoints) * 100, points > 0 ? 2 : 0);
+
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <div class="bar-label">${index + 1}º ${item.turma}</div>
+      <div class="bar-track" aria-label="${item.turma}: ${formatNumber(points)} pontos">
+        <div class="bar-fill" style="width: ${width}%"></div>
+      </div>
+      <div class="bar-value">${formatNumber(points)} pts</div>
+    `;
+    barChart.appendChild(row);
+  });
+}
+
 function render(data, updatedAt) {
   tbody.innerHTML = '';
+
   data.forEach((item, index) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -26,6 +50,7 @@ function render(data, updatedAt) {
 
   podium.innerHTML = '';
   const classes = ['first', 'second', 'third'];
+
   data.slice(0, 3).forEach((item, index) => {
     const card = document.createElement('article');
     card.className = `podium-card ${classes[index]}`;
@@ -37,6 +62,8 @@ function render(data, updatedAt) {
     `;
     podium.appendChild(card);
   });
+
+  renderChart(data);
 
   statusEl.hidden = true;
   table.hidden = false;
@@ -59,6 +86,7 @@ async function loadRanking() {
 
     const payload = await response.json();
     const data = Array.isArray(payload.ranking) ? payload.ranking : [];
+
     if (!data.length) throw new Error('Ranking vazio.');
 
     data.sort((a, b) =>
@@ -70,6 +98,7 @@ async function loadRanking() {
     render(data, payload.updatedAt);
   } catch (error) {
     table.hidden = true;
+    barChart.innerHTML = '';
     statusEl.hidden = false;
     statusEl.textContent = 'Não foi possível carregar o ranking agora. Tente novamente em alguns instantes.';
     updated.textContent = 'Falha ao atualizar os dados';
