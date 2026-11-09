@@ -1,4 +1,46 @@
 const RANKING_URL = 'ranking.json';
+const SHEET_ID = '145Ap0Z2q7tekanL-j9BBYhfbZXQhNq6cRQYtEehstrM';
+const SHEET_GID = '1035928882';
+
+function numeric(value) {
+  if (typeof value === 'number') return value;
+  const raw = String(value ?? '').trim().replace(/\s/g, '');
+  return Number(raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw) || 0;
+}
+
+// Google Visualization provides a cross-origin callback for publicly readable Sheets.
+function fetchLiveRanking() {
+  return new Promise((resolve, reject) => {
+    const callbackName = '__pecpRankingCallback';
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => finish(new Error('Tempo esgotado ao consultar a planilha.')), 12000);
+    function finish(error, value) {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+      if (error) reject(error); else resolve(value);
+    }
+    window[callbackName] = response => {
+      try {
+        if (response.status !== 'ok' || !response.table) throw new Error('Planilha indisponível ou sem acesso público.');
+        const rows = response.table.rows || [];
+        const ranking = rows.map(row => ({
+          turma: String(row.c?.[0]?.v ?? '').trim(),
+          kg: numeric(row.c?.[1]?.v),
+          pontos: numeric(row.c?.[2]?.v)
+        })).filter(row => row.turma && row.turma.toUpperCase() !== 'TURMA');
+        if (!ranking.length) throw new Error('Planilha sem dados.');
+        finish(null, ranking);
+      } catch (error) { finish(error); }
+    };
+    script.onerror = () => finish(new Error('Falha ao acessar a planilha.'));
+    const query = encodeURIComponent('select A,B,C');
+    script.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+      '/gviz/tq?gid=' + SHEET_GID + '&tq=' + query +
+      '&tqx=responseHandler:' + callbackName + '&_=' + Date.now();
+    document.head.appendChild(script);
+  });
+}
 
 const statusEl = document.getElementById('status');
 const table = document.getElementById('rankingTable');
@@ -77,32 +119,40 @@ function render(data, updatedAt) {
 
 async function loadRanking() {
   statusEl.hidden = false;
-  statusEl.textContent = 'Carregando ranking...';
+  statusEl.textContent = 'Consultando a planilha...';
   updated.textContent = 'Atualizando...';
 
   try {
-    const response = await fetch(`${RANKING_URL}?_=${Date.now()}`, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const payload = await response.json();
-    const data = Array.isArray(payload.ranking) ? payload.ranking : [];
-
-    if (!data.length) throw new Error('Ranking vazio.');
-
-    data.sort((a, b) =>
-      Number(b.pontos) - Number(a.pontos) ||
-      Number(b.kg) - Number(a.kg) ||
-      String(a.turma).localeCompare(String(b.turma), 'pt-BR')
-    );
-
-    render(data, payload.updatedAt);
-  } catch (error) {
-    table.hidden = true;
-    barChart.innerHTML = '';
-    statusEl.hidden = false;
-    statusEl.textContent = 'Não foi possível carregar o ranking agora. Tente novamente em alguns instantes.';
-    updated.textContent = 'Falha ao atualizar os dados';
-    console.error(error);
+    const data = await fetchLiveRanking();
+    data.sort((a, b) => b.pontos - a.pontos || b.kg - a.kg ||
+      a.turma.localeCompare(b.turma, 'pt-BR'));
+    render(data, new Date().toISOString());
+    updated.textContent = 'Dados consultados na planilha em ' +
+      new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
+  } catch (liveError) {
+    console.warn('Consulta ao Google Planilhas falhou:', liveError);
+    try {
+      const response = await fetch(RANKING_URL + '?_=' + Date.now(), { cache: 'no-store' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const payload = await response.json();
+      const data = Array.isArray(payload.ranking) ? payload.ranking : [];
+      if (!data.length) throw new Error('Ranking vazio.');
+      data.sort((a, b) => numeric(b.pontos) - numeric(a.pontos) || numeric(b.kg) - numeric(a.kg));
+      render(data, payload.updatedAt);
+      updated.textContent = 'Dados de referência de ' +
+        new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+          .format(new Date(payload.updatedAt)) + ' (sem atualização ao vivo)';
+      statusEl.hidden = false;
+      statusEl.textContent = 'Não foi possível consultar a planilha em tempo real. Exibindo a última cópia disponível.';
+    } catch (error) {
+      table.hidden = true;
+      barChart.innerHTML = '';
+      podium.innerHTML = '';
+      statusEl.hidden = false;
+      statusEl.textContent = 'Não foi possível carregar o ranking. Verifique o acesso à planilha.';
+      updated.textContent = 'Falha ao atualizar os dados';
+      console.error(error);
+    }
   }
 }
 
