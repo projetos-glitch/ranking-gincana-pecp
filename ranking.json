@@ -1,21 +1,21 @@
 {
-  "updatedAt": "2026-09-23T20:05:00Z",
+  "updatedAt": "2026-11-09T17:12:00Z",
   "source": "Ranking Público",
   "ranking": [
     {
+      "turma": "1° ADM",
+      "kg": 207.38,
+      "pontos": 1762.16
+    },
+    {
       "turma": "3° ADM",
-      "kg": 24.32,
-      "pontos": 207.82
+      "kg": 159.08,
+      "pontos": 1453.39
     },
     {
       "turma": "2° ADM",
-      "kg": 18.34,
-      "pontos": 140.62
-    },
-    {
-      "turma": "1° ADM",
-      "kg": 8.94,
-      "pontos": 78.28
+      "kg": 125.3,
+      "pontos": 1042.34
     }
   ]
 }
